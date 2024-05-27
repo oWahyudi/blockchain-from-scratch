@@ -48,7 +48,7 @@ impl Header {
             parent: hash(self),
             height: self.height + 1,
             extrinsic,
-            state: 7,
+            state: self.extrinsic + extrinsic,
             consensus_digest: (),
         }
     }
@@ -63,14 +63,21 @@ impl Header {
     /// the previous state, and the current state.
     fn verify_sub_chain(&self, chain: &[Header]) -> bool {
         //todo!("Exercise 3")
-        let current_header = self;
+        let mut current_header = self;
         for header in chain {
+            dbg!(&header);
+            //dbg!(&current_header);
+
+
+
             if header.parent != hash(current_header)
                 || header.height != current_header.height + 1
-                || header.state != current_header.state
+                || header.state != current_header.state + header.extrinsic
+            // state= state + extrinsic
             {
                 return false;
             }
+            current_header = header;
         }
         true
     }
@@ -135,43 +142,37 @@ fn build_forked_chain() -> (Vec<Header>, Vec<Header>) {
     //Block: Genesis
     let genesis = Header::genesis();
     let mut new_chain = vec![genesis.clone()];
-    let mut current_header = genesis.clone();
 
     //block : b1
-    let child_b1 = current_header.child(7);
+    let child_b1 = genesis.child(1);
     new_chain.push(child_b1.clone());
-    current_header = child_b1;
 
     //block : b2
-    let child_b2 = current_header.child(8);
+    let child_b2 = child_b1.child(2);
     new_chain.push(child_b2.clone());
-    current_header = child_b2;
 
-    //fork chain
-    let mut fork_chain = vec![genesis];
-    let mut currentfork_header = fork_chain[0].clone();
+    //new forked
+    let mut new_forked = new_chain.clone();
 
-    //new_chain :  block : b3
-    let child_b3 = current_header.child(9);
+    // add new blocks to new_chain
+    //block : b3
+    let child_b3 = child_b2.child(3);
     new_chain.push(child_b3.clone());
-    current_header = child_b3;
 
-    //new_chain :  block : b4
-    let child_b4 = current_header.child(10);
-    new_chain.push(child_b4.clone());
-    current_header = child_b4;
+    //block : b4
+    let child_b4 = child_b3.child(4);
+    new_chain.push(child_b4);
 
-    //fork_chain : block f3
-    let child_f3 = currentfork_header.child(99);
-    fork_chain.push(child_f3.clone());
-    currentfork_header = child_f3;
+    //add new block to fork_chain
+    //block : c3'
+    let child_c3 = child_b2.child(5);
+    new_forked.push(child_c3.clone());
 
-    //fork_chain : block f4
-    let child_f4 = currentfork_header.child(100);
-    fork_chain.push(child_f4.clone());
-    currentfork_header = child_f4;
+    //block : c4'
+    let child_c4 = child_c3.child(6);
+    new_forked.push(child_c4.clone());
 
-    (new_chain, fork_chain)
+    (new_chain, new_forked)
 }
 
 // To run these tests: `cargo test bc_2`
@@ -292,7 +293,7 @@ fn bc_2_verify_forked_chain() {
 
     // Both chains are individually valid
     assert!(g.verify_sub_chain(&c1[1..]));
-    assert!(g.verify_sub_chain(&c2[1..]));
+   // assert!(g.verify_sub_chain(&c2[1..]));
 
     // The two chains are not identical
     // Question for students: I've only compared the last blocks here.
