@@ -40,7 +40,33 @@ impl StateMachine for ClothesMachine {
     type Transition = ClothesAction;
 
     fn next_state(starting_state: &ClothesState, t: &ClothesAction) -> ClothesState {
-        todo!("Exercise 3")
+        match starting_state {
+            ClothesState::Tattered => ClothesState::Tattered,
+            //Wearing,Washing,Drying clothes decreases  by 1
+            ClothesState::Clean(life) | ClothesState::Dirty(life) | ClothesState::Wet(life) => {
+                match t {
+                    ClothesAction::Wear | ClothesAction::Wash | ClothesAction::Dry => {
+                        if life == &1 {
+                            ClothesState::Tattered
+                        } else {
+                            match t {
+                                ClothesAction::Wear => ClothesState::Dirty(*life - 1),
+                                ClothesAction::Wash => ClothesState::Wet(*life - 1),
+                                ClothesAction::Dry => {
+                                    //Drying the dirty or tattered clothes wont change it's state.
+                                    match starting_state {
+                                        ClothesState::Clean(_) => ClothesState::Clean(*life - 1),
+                                        ClothesState::Dirty(_) => ClothesState::Dirty(*life - 1),
+                                        ClothesState::Wet(_) => ClothesState::Clean(*life - 1),
+                                        ClothesState::Tattered => ClothesState::Tattered,
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

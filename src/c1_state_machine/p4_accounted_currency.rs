@@ -45,7 +45,72 @@ impl StateMachine for AccountedCurrency {
     type Transition = AccountingTransaction;
 
     fn next_state(starting_state: &Balances, t: &AccountingTransaction) -> Balances {
-        todo!("Exercise 1")
+        let mut new_starting_state = starting_state.clone();
+
+        match t {
+            AccountingTransaction::Mint { minter, amount } => {
+                if amount > &0 {
+                    *new_starting_state.entry(*minter).or_insert(0) += amount;
+                }
+            }
+            AccountingTransaction::Burn { burner, amount } => {
+                if amount > &0 && starting_state.contains_key(burner) {
+                    if let Some(&value) = new_starting_state.get(burner) {
+                        if *amount >= value {
+                            new_starting_state.remove(burner);
+                        } else {
+                            *new_starting_state.entry(*burner).or_insert(0) -= amount;
+                        }
+                    }
+                }
+            }
+            AccountingTransaction::Transfer {
+                sender,
+                receiver,
+                amount,
+            } => {
+                if amount > &0 && sender != receiver {
+                    if let Some(&sender_balance) = new_starting_state.get(sender) {
+                        // check if crediting sender's balance successful
+                        match sender_balance.checked_sub(*amount) {
+                            Some(new_sender_balance) => {
+                                //check if new receiver and create one.
+                                if new_starting_state.get(receiver).is_none() {
+                                    *new_starting_state.entry(*receiver).or_insert(0) = 0;
+                                }
+
+                                match new_starting_state.get(receiver) {
+                                    Some(&receiver_balance) => {
+                                        match receiver_balance.checked_add(*amount) {
+                                            Some(new_receiver_balance) => {
+                                                *new_starting_state.entry(*sender).or_insert(0) =
+                                                    new_sender_balance;
+                                                *new_starting_state.entry(*receiver).or_insert(0) =
+                                                    new_receiver_balance;
+
+                                                //check if sender's balance empty, remove it
+                                                if let Some(&new_sender_balance_check) =
+                                                    new_starting_state.get(sender)
+                                                {
+                                                    if new_sender_balance_check == 0 {
+                                                        new_starting_state.remove(sender);
+                                                    }
+                                                }
+                                            }
+                                            None => (),
+                                        }
+                                    }
+                                    None => (),
+                                }
+                            }
+                            None => (),
+                        }
+                    }
+                }
+            }
+        }
+
+        new_starting_state
     }
 }
 

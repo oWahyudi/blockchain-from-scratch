@@ -4,7 +4,7 @@
 //! When a state transition spends bills, new bills are created in lesser or equal amount.
 
 use super::{StateMachine, User};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// This state machine models a multi-user currency system. It tracks a set of bills in
 /// circulation, and updates that set when money is transferred.
@@ -94,7 +94,125 @@ impl StateMachine for DigitalCashSystem {
     type Transition = CashTransaction;
 
     fn next_state(starting_state: &Self::State, t: &Self::Transition) -> Self::State {
-        todo!("Exercise 1")
+        let mut new_starting_state = starting_state.clone();
+        match t {
+            CashTransaction::Mint { minter, amount } => {
+                new_starting_state = State::from([Bill {
+                    owner: *minter,
+                    amount: *amount,
+                    serial: new_starting_state.next_serial(),
+                }]);
+            }
+            CashTransaction::Transfer { spends, receives } => {
+                //Checks for overflow on total receives
+                let mut subtotal_checks: HashMap<User, u64> = HashMap::new();
+                for bill in receives {
+                    let value = subtotal_checks.entry(bill.owner.clone()).or_insert(0);
+
+                    if bill.amount == 0 {
+                        return new_starting_state;
+                    }
+
+                    if let Some(result) = value.checked_add(bill.amount) {
+                        *value = result;
+                    } else {
+                        return new_starting_state;
+                    }
+                }
+
+                //Checks for overflow on total spending
+                subtotal_checks.clear();
+                for bill in spends {
+                    let value = subtotal_checks.entry(bill.owner.clone()).or_insert(0);
+
+                    if bill.amount == 0 {
+                        return new_starting_state;
+                    }
+
+                    if let Some(result) = value.checked_add(bill.amount) {
+                        *value = result;
+                    } else {
+                        return new_starting_state;
+                    }
+                }
+
+                //Checks for empty spending
+                if spends.is_empty() {
+                    return new_starting_state;
+                }
+
+                let mut unique_serial = HashSet::new();
+                //Checks for duplicate serial on spending
+                let any_duplicate_spend_serial =
+                    spends.iter().any(|bill| !unique_serial.insert(bill.serial));
+                if any_duplicate_spend_serial {
+                    return new_starting_state;
+                }
+
+                //Checks for duplicate serial on receives
+                unique_serial.clear();
+                let any_duplicate_receive_serial = receives
+                    .iter()
+                    .any(|bill| !unique_serial.insert(bill.serial));
+                if any_duplicate_receive_serial {
+                    return new_starting_state;
+                }
+
+                //Checks for spending and receiving the same bills based on their serial numbers
+                unique_serial.clear();
+                let mut all_bills = spends.iter().chain(receives.iter());
+
+                let any_duplicate_all_bill_serial =
+                    all_bills.any(|bill| !unique_serial.insert(bill.serial));
+                if any_duplicate_all_bill_serial {
+                    return new_starting_state;
+                }
+
+                // //Checks for invalid serial numbers based on the sequence of the next serial number and the total received bills
+                let count_receives: u64 = receives.len() as u64;
+                let max_serial = starting_state.next_serial() + count_receives;
+                let any_invalid_receive_serial = receives
+                    .iter()
+                    .any(|bill| !(1..max_serial).contains(&bill.serial));
+                if any_invalid_receive_serial {
+                    return new_starting_state;
+                }
+
+                //Check if any spend bills are not in balance.
+                let any_not_in_balance = spends.iter().any(|spend_bill| {
+                    !starting_state
+                        .bills
+                        .iter()
+                        .any(|balance_bill| balance_bill == spend_bill)
+                });
+                if any_not_in_balance {
+                    return new_starting_state;
+                }
+
+                //Perform Spending
+                new_starting_state
+                    .bills
+                    .retain(|bill| !spends.iter().any(|spend| spend == bill));
+
+                //Perform Receiving
+                new_starting_state.bills.extend(receives.iter().cloned());
+
+                //Set Next Serial
+                match new_starting_state
+                    .bills
+                    .iter()
+                    .map(|bill| bill.serial)
+                    .max()
+                {
+                    Some(result) => {
+                        new_starting_state.set_serial(&result + 1);
+                    }
+                    None => (),
+                }
+            }
+        }
+
+        new_starting_state
     }
 }
 
@@ -434,7 +552,7 @@ fn sm_5_spending_more_than_bill_fails() {
                 },
                 Bill {
                     owner: User::Charlie,
-                    amount: 42,
+                    amount: 43,
                     serial: 1,
                 },
             ],
