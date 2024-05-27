@@ -7,8 +7,8 @@
 //pub use p6_rich_state::{Block, Header};
 
 mod p1_header_chain;
-//mod p2_extrinsic_state;
-//mod p3_consensus;
-//pub mod p4_batched_extrinsics;
-//mod p5_fork_choice;
-//mod p6_rich_state;
+mod p2_extrinsic_state;
+mod p3_consensus;
+pub mod p4_batched_extrinsics;
+mod p5_fork_choice;
+mod p6_rich_state;
